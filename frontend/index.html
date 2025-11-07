@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Automotive MAC Protocol — Interactive Demo</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+    />
+    <style>
+      :root {
+        --bg-console: #0b1020;
+        --fg-console: #cfe7ff;
+        --ok: #16a34a;
+        --warn: #f59e0b;
+        --bad: #dc2626;
+        --card: #0f172a;
+        --muted: #64748b;
+      }
+      body {
+        padding: 1.25rem;
+      }
+      header h1 {
+        margin-bottom: 0.25rem;
+      }
+      .sub {
+        color: var(--muted);
+      }
+      .badge {
+        font-size: 0.8rem;
+        padding: 0.12rem 0.5rem;
+        border-radius: 0.5rem;
+        background: #eafaf1;
+        color: #176d3a;
+        vertical-align: middle;
+      }
+      .console {
+        background: var(--bg-console);
+        color: var(--fg-console);
+        padding: 1rem;
+        border-radius: 10px;
+        min-height: 200px;
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+      }
+      .grid-auto {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+      .card {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem;
+        background: white;
+      }
+      .metric {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.6rem 0.8rem;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        background: #fafafa;
+        margin: 0.35rem 0;
+      }
+      .metric b {
+        font-size: 1.05rem;
+      }
+      .chip {
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        font-size: 0.85rem;
+      }
+      .chip.ok {
+        background: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #10b98133;
+      }
+      .chip.bad {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #ef444433;
+      }
+      .chip.warn {
+        background: #fffbeb;
+        color: #92400e;
+        border: 1px solid #f59e0b33;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .imggrid img {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+      }
+      .stack {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .btn-row {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+      .small {
+        font-size: 0.9rem;
+      }
+      .ok {
+        color: var(--ok);
+      }
+      .bad {
+        color: var(--bad);
+      }
+      .warn {
+        color: var(--warn);
+      }
+      .kbd {
+        background: #111827;
+        color: #e5e7eb;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>
+        Automotive MAC Protocol <span class="badge">Interactive Demo</span>
+      </h1>
+      <p class="sub">
+        Lightweight CAN message authentication — blocks replay & spoofing with
+        sub-millisecond latency.
+      </p>
+    </header>
+
+    <!-- Controls -->
+    <section class="card">
+      <h3>Run a Demo</h3>
+      <div class="btn-row">
+        <button id="btnQuick">🚗 Quick Test</button>
+        <button id="btnAttacks">🛡️ Attack Simulator</button>
+        <button id="btnPerf">⚡ Performance Test</button>
+        <button id="btnSuite">📦 Full Test Suite</button>
+        <button id="btnStream" class="contrast outline">
+          📡 Live Logs (SSE)
+        </button>
+      </div>
+      <details class="small" style="margin-top: 0.5rem">
+        <summary>Advanced options</summary>
+        <div class="grid" style="margin-top: 0.5rem">
+          <label>
+            Deterministic seed (quick)
+            <input type="number" id="seed" placeholder="e.g. 42" />
+          </label>
+          <label>
+            Perf duration (seconds)
+            <input type="number" id="perfDur" value="3" min="1" max="10" />
+          </label>
+          <label>
+            Probes (perf/attacks)
+            <input type="number" id="probes" value="3" min="1" max="16" />
+          </label>
+          <label>
+            Attack rate (hint only)
+            <input type="number" id="attackRate" value="0.2" step="0.1" />
+          </label>
+        </div>
+      </details>
+      <h5 style="margin-top: 1rem">Output</h5>
+      <pre id="console" class="console">Click a button to run…</pre>
+    </section>
+
+    <!-- At-a-glance metrics -->
+    <section class="grid-auto" style="margin-top: 1rem">
+      <div class="card">
+        <h4>Security Status</h4>
+        <div id="secReplay" class="metric">
+          <span>Replay Attack</span><span class="chip warn">pending</span>
+        </div>
+        <div id="secSpoof" class="metric">
+          <span>Spoofing Attack</span><span class="chip warn">pending</span>
+        </div>
+        <div id="secUnknown" class="metric">
+          <span>Unknown Probe</span><span class="chip warn">pending</span>
+        </div>
+        <p class="small muted" id="secLogHint">
+          Run <span class="kbd">Attack Simulator</span> to populate the security
+          log.
+        </p>
+      </div>
+
+      <div class="card">
+        <h4>Performance</h4>
+        <div id="perfLat" class="metric">
+          <span>Avg Latency</span><b class="muted">—</b>
+        </div>
+        <div id="perfP95" class="metric">
+          <span>p95 Latency</span><b class="muted">—</b>
+        </div>
+        <div id="perfThr" class="metric">
+          <span>Throughput</span><b class="muted">—</b>
+        </div>
+        <div id="perfMem" class="metric">
+          <span>Footprint (est.)</span><b class="muted">—</b>
+        </div>
+        <p class="small muted">
+          Targets: <span class="kbd">&lt; 10ms</span> avg latency;
+          <span class="kbd">&gt; 1,000</span> msg/s.
+        </p>
+      </div>
+
+      <div class="card">
+        <h4>Recent Frames</h4>
+        <div id="frames" class="small muted">
+          Run a test to see authenticated frames.
+        </div>
+      </div>
+    </section>
+
+    <!-- Visuals -->
+    <section class="card" style="margin-top: 1rem">
+      <h3>Key Visuals</h3>
+      <p class="small muted">
+        These images are generated by your Python scripts. Place them under
+        <span class="kbd">frontend/images/</span> (or update the paths).
+      </p>
+      <div class="grid-auto imggrid">
+        <figure>
+          <img src="images/performance_latency.png" alt="Latency" />
+          <figcaption class="small">Authentication Latency</figcaption>
+        </figure>
+        <figure>
+          <img src="images/performance_throughput.png" alt="Throughput" />
+          <figcaption class="small">Throughput</figcaption>
+        </figure>
+        <figure>
+          <img src="images/security_radar.png" alt="Security Radar" />
+          <figcaption class="small">Security Features</figcaption>
+        </figure>
+        <figure>
+          <img src="images/system_architecture.png" alt="Architecture" />
+          <figcaption class="small">System Architecture</figcaption>
+        </figure>
+        <figure>
+          <img src="images/protocol_flow_detailed.png" alt="Flow" />
+          <figcaption class="small">Protocol Flow</figcaption>
+        </figure>
+        <figure>
+          <img src="images/attack_prevention.png" alt="Attacks" />
+          <figcaption class="small">Attack Prevention</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <footer class="small" style="margin-top: 1rem">
+      Built with Python (FastAPI) + lightweight cryptographic MAC for CAN. Demo
+      by Syed.
+    </footer>
+
+    <script>
+      // === CONFIG ===
+      // If you serve this file from the same origin as FastAPI, leave as "".
+      // If you host the frontend elsewhere (e.g., GitHub Pages), set to your API base:
+      // const API_URL = "http://127.0.0.1:8000";
+      const API_URL = "";
+
+      const elConsole = document.getElementById("console");
+      const elSecReplay = document
+        .getElementById("secReplay")
+        .querySelector(".chip");
+      const elSecSpoof = document
+        .getElementById("secSpoof")
+        .querySelector(".chip");
+      const elSecUnknown = document
+        .getElementById("secUnknown")
+        .querySelector(".chip");
+      const elPerfLat = document.getElementById("perfLat").querySelector("b");
+      const elPerfP95 = document.getElementById("perfP95").querySelector("b");
+      const elPerfThr = document.getElementById("perfThr").querySelector("b");
+      const elPerfMem = document.getElementById("perfMem").querySelector("b");
+      const elFrames = document.getElementById("frames");
+
+      function setChip(el, ok) {
+        el.classList.remove("ok", "bad", "warn");
+        el.textContent =
+          ok === true ? "blocked ✅" : ok === false ? "failed ❌" : "pending";
+        el.classList.add(ok === true ? "ok" : ok === false ? "bad" : "warn");
+      }
+
+      function pretty(obj) {
+        return JSON.stringify(obj, null, 2);
+      }
+
+      function print(msg, replace = false) {
+        elConsole.textContent = replace
+          ? msg
+          : elConsole.textContent + (elConsole.textContent ? "\n" : "") + msg;
+      }
+
+      async function api(path, payload) {
+        const url = (API_URL ? API_URL : "") + path;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload ? JSON.stringify(payload) : "{}",
+        });
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`HTTP ${res.status}: ${t || res.statusText}`);
+        }
+        return res.json();
+      }
+
+      function updateFrames(list) {
+        if (!list || !list.length) {
+          elFrames.innerHTML = '<span class="muted">No frames yet.</span>';
+          return;
+        }
+        const top = list.slice(0, 6);
+        const rows = top
+          .map(
+            (f) =>
+              `<li><code>${f.probe}</code> — Seq <b>${f.seq}</b>, MAC <code>${f.mac_hex}</code></li>`
+          )
+          .join("");
+        elFrames.innerHTML = `<ul class="small">${rows}</ul>`;
+      }
+
+      function updatePerf(perf) {
+        if (!perf) return;
+        const lat = perf.latency || {};
+        const thr = perf.throughput || {};
+        const mem = perf.memory || {};
+        elPerfLat.textContent =
+          lat.avg_ms != null ? `${lat.avg_ms.toFixed(3)} ms` : "—";
+        elPerfP95.textContent =
+          lat.p95_ms != null ? `${lat.p95_ms.toFixed(3)} ms` : "—";
+        elPerfThr.textContent =
+          thr.msg_per_sec != null
+            ? `${Math.round(thr.msg_per_sec).toLocaleString()} msg/s`
+            : "—";
+        elPerfMem.textContent =
+          mem.total_bytes != null
+            ? `${mem.total_bytes.toLocaleString()} bytes`
+            : "—";
+
+        // quick green/red hints
+        if (lat.avg_ms != null)
+          elPerfLat.classList.toggle("ok", lat.avg_ms < 10);
+        if (thr.msg_per_sec != null)
+          elPerfThr.classList.toggle("ok", thr.msg_per_sec > 1000);
+      }
+
+      // === Button actions ===
+      document.getElementById("btnQuick").onclick = async () => {
+        try {
+          elConsole.textContent = "Running quick test…";
+          const seed = document.getElementById("seed").value;
+          const q = new URLSearchParams();
+          if (seed) q.set("seed", seed);
+          const url =
+            "/api/run/quick" + (q.toString() ? "?" + q.toString() : "");
+          const res = await fetch((API_URL || "") + url, { method: "POST" });
+          if (!res.ok) throw new Error("Quick test failed");
+          const data = await res.json();
+          print("✅ Quick Test finished", true);
+          print(pretty(data));
+          updateFrames(data.frames_received);
+        } catch (e) {
+          print(`❌ ${e.message}`, true);
+        }
+      };
+
+      document.getElementById("btnAttacks").onclick = async () => {
+        try {
+          elConsole.textContent = "Running attack simulator…";
+          const probes = +document.getElementById("probes").value || 3;
+          const attackRate =
+            +document.getElementById("attackRate").value || 0.2;
+          const data = await api("/api/run/attacks", {
+            replay: true,
+            spoof: true,
+            attack_rate: attackRate,
+            probes,
+          });
+          print("✅ Attack Simulator finished", true);
+          print(pretty(data));
+          setChip(elSecReplay, data.replay_blocked);
+          setChip(elSecSpoof, data.spoof_blocked);
+          setChip(elSecUnknown, data.unknown_blocked);
+          if (data.logs?.length) {
+            print(
+              "\nSecurity Log:\n" + data.logs.map((l) => " • " + l).join("\n")
+            );
+          }
+        } catch (e) {
+          print(`❌ ${e.message}`, true);
+        }
+      };
+
+      document.getElementById("btnPerf").onclick = async () => {
+        try {
+          elConsole.textContent = "Running performance tests…";
+          const duration_s = +document.getElementById("perfDur").value || 3;
+          const probes = +document.getElementById("probes").value || 3;
+          const data = await api("/api/run/perf", { duration_s, probes });
+          print("✅ Performance Test finished", true);
+          print(pretty(data));
+          updatePerf(data);
+        } catch (e) {
+          print(`❌ ${e.message}`, true);
+        }
+      };
+
+      document.getElementById("btnSuite").onclick = async () => {
+        try {
+          elConsole.textContent = "Running full test suite…";
+          const res = await fetch((API_URL || "") + "/api/run/suite", {
+            method: "POST",
+          });
+          if (!res.ok) throw new Error("Suite failed");
+          const data = await res.json();
+          print("✅ Full Suite finished", true);
+          print(pretty(data));
+          updateFrames(data?.network_quick?.frames_received);
+          updatePerf(data?.performance);
+          const a = data?.attacks || {};
+          setChip(elSecReplay, a.replay_blocked);
+          setChip(elSecSpoof, a.spoof_blocked);
+          setChip(elSecUnknown, a.unknown_blocked);
+        } catch (e) {
+          print(`❌ ${e.message}`, true);
+        }
+      };
+
+      // === Live Logs (SSE demo) ===
+      document.getElementById("btnStream").onclick = async () => {
+        try {
+          elConsole.textContent = "Connecting to live log stream…";
+          const runId = crypto.randomUUID
+            ? crypto.randomUUID()
+            : String(Date.now());
+          const url = (API_URL || "") + `/api/stream/logs/${runId}`;
+          const es = new EventSource(url);
+          es.onmessage = (evt) => {
+            try {
+              const { line } = JSON.parse(evt.data);
+              print(line);
+            } catch (_) {}
+          };
+          es.onerror = () => {
+            print("Stream closed.");
+            es.close();
+          };
+        } catch (e) {
+          print(`❌ ${e.message}`, true);
+        }
+      };
+    </script>
+  </body>
+</html>

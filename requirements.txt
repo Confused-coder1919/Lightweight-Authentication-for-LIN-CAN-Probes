@@ -1,0 +1,4 @@
+fastapi==0.115.5
+pydantic==2.9.2
+typing-inspection==0.4.2
+uvicorn==0.30.6  # not used by Vercel at runtime, but good locally

@@ -1,0 +1,61 @@
+1) Quick smoke test — shows normal secure communication
+
+What it does:
+
+Registers 3 probes (0x100, 0x101, 0x102) with the ECU
+
+Runs 5 authentication cycles with a fresh nonce each time
+
+Verifies every message with a MAC and sequence check
+
+Prints authenticated cycles and a few received frames (Seq + MAC)
+
+Run it:
+
+python3 quick_test.py
+
+2) Attack simulator — proves replay & spoofing are blocked
+
+What it does:
+
+Replay attack: sends the same (seq, MAC, data) twice → ECU rejects the second one
+
+Spoofing attack: attacker guesses a MAC without the secret → ECU rejects it
+
+Prints the security log entries showing why it was blocked
+
+Run it:
+
+python3 attack_simulator.py
+
+3) Performance analyzer — shows real-time speed
+
+What it does:
+
+Measures authentication latency (average, min, 95th percentile)
+
+Measures throughput (messages per second) over a short burst
+
+Confirms you’re well below automotive timing budgets (e.g., <10ms)
+
+Run it:
+
+python3 performance_analyzer.py
+
+4) Full integration suite — everything, end to end
+
+What it does:
+
+Tests MAC correctness (Lightweight + Simple)
+
+Runs the virtual CAN network and verifies 5/5 cycles
+
+Runs attack tests (replay & spoof)
+
+Benchmarks performance
+
+Prints the final summary (e.g., 27/27 tests passed)
+
+Run it:
+
+python3 test_suite.py
